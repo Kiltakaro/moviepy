@@ -136,12 +136,13 @@ class CompositeVideoClip(VideoClip):
         return [clip for clip in self.clips if clip.is_playing(t)]
 
     def close(self):
-        """Closes the instance, releasing all the resources."""
+        for clip in self.clips:
+            clip.close()
+        
         if self.created_bg and self.bg:
-            # Only close the background clip if it was locally created.
-            # Otherwise, it remains the job of whoever created it.
             self.bg.close()
             self.bg = None
+        
         if hasattr(self, "audio") and self.audio:
             self.audio.close()
             self.audio = None
