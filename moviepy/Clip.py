@@ -53,6 +53,9 @@ class Clip:
         self.memoized_t = None
         self.memoized_frame = None
 
+        self.proc = None
+        self.lastread = None
+
     def copy(self):
         """Allows the usage of ``.copy()`` in clips as chained methods invocation."""
         return _copy.copy(self)
@@ -539,16 +542,22 @@ class Clip:
                 yield frame
 
     def close(self):
-        """Release any resources that are in use."""
-        #    Implementation note for subclasses:
-        #
-        #    * Memory-based resources can be left to the garbage-collector.
-        #    * However, any open files should be closed, and subprocesses
-        #      should be terminated.
-        #    * Be wary that shallow copies are frequently used.
-        #      Closing a Clip may affect its copies.
-        #    * Therefore, should NOT be called by __del__().
-        pass
+        if self.proc:
+            try:
+                self.proc.terminate()
+                self.proc.stdout.close()
+                self.proc.stderr.close()
+                self.proc.wait()
+            except Exception as e:
+                print(f"Error while terminating process: {e}")
+            finally:
+                self.proc = None
+        
+        if self.lastread:
+            del self.lastread
+    
+    def __del__(self):
+        self.close()
 
     def __eq__(self, other):
         if not isinstance(other, Clip):
@@ -633,12 +642,6 @@ class Clip:
             return reduce(add, (self[k] for k in key))
         else:
             return self.get_frame(key)
-
-    def __del__(self):
-        # WARNING: as stated in close() above, if we call close, it closes clips even
-        # if shallow copies are still in used, leading to some bugs: https://github.com/Zulko/moviepy/issues/1994
-        # so don't call self.close() here, rather do it manually in the code.
-        pass
 
     def __add__(self, other):
         # concatenate. implemented in specialized classes
